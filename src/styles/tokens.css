@@ -1,0 +1,109 @@
+/*
+ * Design tokens. Values marked (figma) are read from the Wevest mobile app file (core/primary, core/neutral, core/tertiary, core/error, core/info);
+ * the rest of each scale is interpolated between them. The "-text" variants of status colours are darker than the brand colours so small text
+ * keeps WCAG AA contrast (4.5:1) on white. Replace with the design-system file's tokens once it is shared with the connected Figma account.
+ */
+:root {
+  --primary-50: #f8f6fb;  /* figma */
+  --primary-100: #efe6fa; --primary-200: #ddc9f4; --primary-300: #c4a2ec; --primary-400: #a876e2;
+  --primary-500: #8a4dd8; /* figma */
+  --primary-600: #7a37c9;
+  --primary-700: #6726ba; /* figma */
+  --primary-800: #511e95; --primary-900: #3b1670;
+
+  --neutral-50: #fafafa;  /* figma */
+  --neutral-100: #f5f5f5; /* figma */
+  --neutral-200: #e3e3e3; /* figma */
+  --neutral-300: #cfcfcf; --neutral-400: #b3b3b3;
+  --neutral-500: #999999; /* figma */
+  --neutral-600: #808080;
+  --neutral-700: #666666; /* figma */
+  --neutral-800: #404040; /* figma */
+  --neutral-900: #2a2a2a; /* figma */
+  --neutral-950: #161616; /* figma */
+
+  --success: #26a663;     /* figma core/tertiary/700 */
+  --success-text: #17794a; --success-tint: #e8f6ef;
+  --danger: #eb1414;      /* figma core/error/600 */
+  --danger-text: #c70f0f; --danger-tint: #fdecec; --danger-solid: #c62828; /* white text on this: 5.6:1 */
+  --info: #0c9fc0;        /* figma core/info/700 */
+  --info-text: #08697f; --info-tint: #e3f5fa;
+  --warning: #f5a83a;
+  --warning-text: #8a5300; --warning-tint: #fff3e0;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; /* figma core/spacing/6 = 24 */
+  --space-8: 32px; --space-10: 40px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 24px; --r-pill: 999px;
+
+  --bg: var(--neutral-50);
+  --surface: #ffffff;
+  --surface-2: var(--neutral-100);
+  --surface-hero: var(--neutral-950);
+  --text: var(--neutral-900);
+  --text-muted: var(--neutral-700);
+  --border: var(--neutral-200);
+  --border-strong: var(--neutral-300);
+  --primary: var(--primary-700);
+  --primary-hover: var(--primary-800);
+  --on-primary: #ffffff;
+  --primary-soft: var(--primary-50);
+  --primary-text: var(--primary-700); /* purple used as TEXT: needs contrast on its tint */
+  --link: var(--primary-700);
+  --focus: var(--primary-500);
+  --shadow-1: 0 1px 2px rgb(22 22 22 / 6%), 0 1px 3px rgb(22 22 22 / 8%);
+  --shadow-2: 0 8px 28px rgb(22 22 22 / 14%);
+
+  --font: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e0e10;
+  --surface: #19191c;
+  --surface-2: #222226;
+  --surface-hero: #09090a;
+  --text: #f2f2f4;
+  --text-muted: #b8b8c0;
+  --border: #323237;
+  --border-strong: #4a4a52;
+  --primary: var(--primary-500);
+  --primary-hover: var(--primary-400);
+  --primary-soft: #2a1f3d;
+  --primary-text: var(--primary-300);
+  --link: var(--primary-300);
+  --focus: var(--primary-300);
+  --success-text: #53d08e; --success-tint: #12281d;
+  --danger-text: #ff8a8a; --danger-tint: #301517; --danger-solid: #d92d2d;
+  --info-text: #5cd0ea; --info-tint: #0f2a31;
+  --warning-text: #f7c06b; --warning-tint: #33270f;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 50%);
+  --shadow-2: 0 8px 28px rgb(0 0 0 / 55%);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e0e10;
+    --surface: #19191c;
+    --surface-2: #222226;
+    --surface-hero: #09090a;
+    --text: #f2f2f4;
+    --text-muted: #b8b8c0;
+    --border: #323237;
+    --border-strong: #4a4a52;
+    --primary: var(--primary-500);
+    --primary-hover: var(--primary-400);
+    --primary-soft: #2a1f3d;
+    --primary-text: var(--primary-300);
+    --link: var(--primary-300);
+    --focus: var(--primary-300);
+    --success-text: #53d08e; --success-tint: #12281d;
+    --danger-text: #ff8a8a; --danger-tint: #301517; --danger-solid: #d92d2d;
+    --info-text: #5cd0ea; --info-tint: #0f2a31;
+    --warning-text: #f7c06b; --warning-tint: #33270f;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 50%);
+    --shadow-2: 0 8px 28px rgb(0 0 0 / 55%);
+    color-scheme: dark;
+  }
+}
