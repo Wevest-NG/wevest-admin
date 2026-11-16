@@ -7,7 +7,8 @@ import react from '@vitejs/plugin-react'
 const api = process.env.WEVEST_API ?? 'http://localhost:3005'
 
 export default defineConfig({
-  base: '/admin/',
+  // Served under /admin/ behind the reverse proxy (see README); on Vercel the app is the whole site, so it lives at the root.
+  base: process.env.VERCEL ? '/' : '/admin/',
   plugins: [react()],
   server: { port: 5173, proxy: { '/v1': { target: api, changeOrigin: false }, '/health': api } },
   build: { sourcemap: false, target: 'es2022', chunkSizeWarningLimit: 700 },
