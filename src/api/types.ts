@@ -28,6 +28,20 @@ export interface Accepted {
   approval: { id: string; status: 'pending'; summary: string; expires_at: string; approvers_needed_with: string }
 }
 
+/** Shown once to a Super Admin when the server has EXPOSE_STAFF_CREDENTIALS on (email delivery not yet working). */
+export interface StaffCredentials {
+  email: string
+  temp_password: string
+  sign_in_url: string
+  expires_in_hours: string
+}
+
+/** A Super Admin creates staff directly (201); everyone else gets {@link Accepted} (202). */
+export interface Created {
+  approval: { id: string; status: 'executed'; summary: string }
+  credentials?: StaffCredentials | null
+}
+
 export interface Customer {
   id: string
   first_name: string | null

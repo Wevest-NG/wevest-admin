@@ -141,6 +141,36 @@ describe('roles and staff', () => {
   })
 })
 
+describe('staff invites', () => {
+  const roles = { data: [{ id: 'r1', name: 'Support', description: '', permissions: ['users.read'], is_system: false, members: 0, updated_at: new Date().toISOString() }] }
+  const none = { data: [] }
+  const creds = { email: 'new@wevest.app', temp_password: 'Temp-Pass-1234', sign_in_url: 'https://api.example/admin', expires_in_hours: '72' }
+  const invite = async (extra: Record<string, () => { status?: number; body: unknown }>, perms: string[]) => {
+    const m = signedIn(staffWith(perms, perms.includes('*') ? 'Super Admin' : 'Manager'), { 'GET /v1/admin/staff': () => ({ body: none }), 'GET /v1/admin/roles': () => ({ body: roles }), ...extra })
+    const user = userEvent.setup()
+    renderWithProviders(<Staff />)
+    await user.click(await screen.findByRole('button', { name: /Invite staff/ }))
+    await user.type(await screen.findByLabelText('Full name'), 'New Person')
+    await user.type(screen.getByLabelText('Work email'), 'new@wevest.app')
+    return { m, user }
+  }
+
+  it('shows a Super Admin the link and temporary password to pass on', async () => {
+    const { user } = await invite({ 'POST /v1/admin/staff': () => ({ status: 201, body: { approval: { id: 'x', status: 'executed', summary: 'Create' }, credentials: creds } }) }, ['*'])
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(await screen.findByDisplayValue('Temp-Pass-1234')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('https://api.example/admin')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Copy message/ })).toBeInTheDocument()
+  })
+
+  it('still sends everyone else\'s invite for approval', async () => {
+    const { user } = await invite({ 'POST /v1/admin/staff': () => ({ status: 202, body: { approval: { id: 'x', status: 'pending', summary: 'Create a staff account.', expires_at: new Date().toISOString(), approvers_needed_with: 'staff.access.approve' } } }) }, ['staff.read', 'staff.create'])
+    await user.click(screen.getByRole('button', { name: 'Send for approval' }))
+    expect(await screen.findByText(/Nothing changes until a second person approves/)).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Temp-Pass-1234')).not.toBeInTheDocument()
+  })
+})
+
 describe('overview', () => {
   it('only asks for what the role may see, and flags a broken audit chain', async () => {
     const m = signedIn(staffWith(['audit.read', 'users.read']), { 'GET /v1/admin/audit-log/verify': () => ({ body: { ok: false, entries: 10, head_seq: 10, head_hash: 'abc', first_bad_seq: 4, broken_anchors: [] } }) })

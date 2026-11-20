@@ -2,20 +2,23 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, LogOut, Plus, ShieldOff, UserCheck, UserX } from 'lucide-react'
 import { api } from '../api/client'
-import type { Role, StaffMember } from '../api/types'
+import type { Accepted, Created, Role, StaffCredentials, StaffMember } from '../api/types'
 import { Can } from '../auth/Can'
 import { useAuth } from '../auth/AuthContext'
 import { dateTime, relative } from '../lib/format'
-import { errorMessage, useGated } from '../lib/gated'
+import { errorMessage } from '../lib/gated'
 import { Badge, Banner, Button, Card, DataTable, PageHeader, Status } from '../ui/components'
 import { Dialog } from '../ui/Dialog'
+import { Copy } from 'lucide-react'
 import { SelectField, TextField } from '../ui/forms'
 import { useConfirm, useToast } from '../ui/Toasts'
 
 type Action = { kind: 'disable' | 'enable' | 'reset-password' | 'reset-2fa' | 'sessions' | 'role'; who: StaffMember }
 
 export default function Staff() {
-  const { staff: me, can } = useAuth(); const toast = useToast(); const confirm = useConfirm(); const qc = useQueryClient(); const gate = useGated()
+  const { staff: me, can } = useAuth(); const toast = useToast(); const confirm = useConfirm(); const qc = useQueryClient()
+  const isSuper = !!me?.permissions.includes('*')
+  const [creds, setCreds] = useState<{ name: string; c: StaffCredentials; reason: 'invite' | 'reset' } | null>(null)
   const list = useQuery({ queryKey: ['staff'], queryFn: () => api.get<{ data: StaffMember[] }>('/v1/admin/staff') })
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api.get<{ data: Role[] }>('/v1/admin/roles') })
   const [act, setAct] = useState<Action | null>(null); const [invite, setInvite] = useState(false)
@@ -23,21 +26,42 @@ export default function Staff() {
 
   const direct = useMutation({
     mutationFn: ({ kind, who }: Action) => kind === 'disable' || kind === 'enable' ? api.patch(`/v1/admin/staff/${who.id}`, { status: kind === 'disable' ? 'disabled' : 'active' }) : kind === 'sessions' ? api.del(`/v1/admin/staff/${who.id}/sessions`) : api.post(`/v1/admin/staff/${who.id}/${kind}`, {}),
-    onSuccess: () => { toast('Done.', 'success'); setAct(null); void qc.invalidateQueries({ queryKey: ['staff'] }) },
+    onSuccess: (r, a) => {
+      const c = (r as { credentials?: StaffCredentials | null } | undefined)?.credentials
+      if (a.kind === 'reset-password' && c) setCreds({ name: a.who.name, c, reason: 'reset' }); else toast('Done.', 'success')
+      setAct(null); void qc.invalidateQueries({ queryKey: ['staff'] })
+    },
     onError: (e) => toast(errorMessage(e), 'danger'),
   })
   const send = async () => {
     setBusy(true)
-    const ok = invite
-      ? await gate(() => api.post('/v1/admin/staff', { email: email.trim(), name: name.trim(), role_id: roleId }))
-      : await gate(() => api.post(`/v1/admin/staff/${act!.who.id}/role`, { role_id: roleId }))
-    setBusy(false); if (ok) { setInvite(false); setAct(null); setEmail(''); setName('') }
+    try {
+      const r = invite
+        ? await api.post<Accepted | Created>('/v1/admin/staff', { email: email.trim(), name: name.trim(), role_id: roleId })
+        : await api.post<Accepted>(`/v1/admin/staff/${act!.who.id}/role`, { role_id: roleId })
+      if (r.approval.status === 'executed') {
+        // A Super Admin's invite takes effect at once: no second person involved.
+        const c = (r as Created).credentials
+        if (c) setCreds({ name: name.trim(), c, reason: 'invite' })
+        else toast(`${name.trim()} was added. They are emailed a temporary password.`, 'success', { title: 'Account created' })
+        void qc.invalidateQueries({ queryKey: ['staff'] })
+      } else {
+        toast(`${r.approval.summary} Nothing changes until a second person approves.`, 'success', { title: 'Sent for approval' })
+      }
+      void qc.invalidateQueries({ queryKey: ['approvals'] })
+      setInvite(false); setAct(null); setEmail(''); setName('')
+    } catch (e) { toast(errorMessage(e), 'danger') }
+    setBusy(false)
+  }
+  const handoffText = (c: StaffCredentials) => `Hi, your Wevest admin account is ready.\n\nSign in: ${c.sign_in_url}\nEmail: ${c.email}\nTemporary password: ${c.temp_password}\n\nThe password works for ${c.expires_in_hours} hours. You will be asked to choose your own password and set up an authenticator app.`
+  const copyText = async (text: string, what: string) => {
+    try { await navigator.clipboard.writeText(text); toast(`${what} copied.`, 'success') } catch { toast('Could not copy. Select the text and copy it by hand.', 'danger') }
   }
   const roleOptions = roles.data?.data ?? []
   const copy: Record<Action['kind'], [string, string]> = {
     disable: ['Disable this account?', 'They are signed out immediately and cannot sign in until you enable the account again.'],
     enable: ['Enable this account?', 'They can sign in again.'],
-    'reset-password': ['Reset their password?', 'They get a new temporary password by email, and are signed out everywhere.'],
+    'reset-password': ['Reset their password?', 'They get a new temporary password by email (you may also be shown it to pass on), and are signed out everywhere.'],
     'reset-2fa': ['Remove their authenticator?', 'Use this when they lose their phone and recovery codes. They sign in again with their password and set up a new authenticator.'],
     sessions: ['End all their sessions?', 'They are signed out everywhere and must sign in again.'],
     role: ['', ''],
@@ -50,7 +74,7 @@ export default function Staff() {
 
   return (
     <>
-      <PageHeader title="Staff" subtitle="Everyone who can sign in to this dashboard. New accounts and role changes need a second person's approval." actions={<Can perm="staff.create"><Button onClick={() => { setRoleId(roleOptions[0]?.id ?? ''); setInvite(true) }}><Plus size={16} aria-hidden /> Invite staff</Button></Can>} />
+      <PageHeader title="Staff" subtitle={isSuper ? 'Everyone who can sign in to this dashboard. As a Super Admin you add staff directly; role changes still need a second person.' : "Everyone who can sign in to this dashboard. New accounts and role changes need a second person's approval."} actions={<Can perm="staff.create"><Button onClick={() => { setRoleId(roleOptions[0]?.id ?? ''); setInvite(true) }}><Plus size={16} aria-hidden /> Invite staff</Button></Can>} />
       <Card flush>
         <DataTable<StaffMember> caption="Staff" rows={list.data?.data} rowKey={(s) => s.id} loading={list.isLoading} error={list.error} onRetry={() => void list.refetch()}
           columns={[
@@ -72,12 +96,25 @@ export default function Staff() {
           ]} />
       </Card>
 
-      <Dialog open={invite} title="Invite a staff member" description="A second person must approve before the account is created. They then get a temporary password by email." onClose={() => setInvite(false)}
-        footer={<><Button variant="secondary" onClick={() => setInvite(false)}>Cancel</Button><Button loading={busy} disabled={!email.includes('@') || name.trim().length < 2 || !roleId} onClick={() => void send()}>Send for approval</Button></>}>
+      <Dialog open={invite} title="Invite a staff member" description={isSuper ? 'The account is created straight away and they get a temporary password.' : 'A second person must approve before the account is created. They then get a temporary password by email.'} onClose={() => setInvite(false)}
+        footer={<><Button variant="secondary" onClick={() => setInvite(false)}>Cancel</Button><Button loading={busy} disabled={!email.includes('@') || name.trim().length < 2 || !roleId} onClick={() => void send()}>{isSuper ? 'Create account' : 'Send for approval'}</Button></>}>
         <TextField label="Full name" value={name} onChange={(e) => setName(e.target.value)} />
         <TextField label="Work email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <SelectField label="Role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>{roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</SelectField>
         <Banner tone="info">You can only give a role whose permissions you hold yourself.</Banner>
+      </Dialog>
+      <Dialog open={!!creds} title={creds?.reason === 'reset' ? `New password for ${creds.name}` : `${creds?.name ?? ''} was added`} onClose={() => setCreds(null)} wide
+        description="Email delivery is not switched on, so send these to them yourself (for example on WhatsApp). This is the only time the password is shown."
+        footer={<><Button variant="secondary" onClick={() => setCreds(null)}>Done</Button>{creds && <Button onClick={() => void copyText(handoffText(creds.c), 'Message')}><Copy size={16} aria-hidden /> Copy message</Button>}</>}>
+        {creds && <>
+          <TextField label="Sign-in link" readOnly value={creds.c.sign_in_url} onFocus={(e) => e.currentTarget.select()} />
+          <TextField label="Email" readOnly value={creds.c.email} onFocus={(e) => e.currentTarget.select()} />
+          <TextField label="Temporary password" readOnly value={creds.c.temp_password} onFocus={(e) => e.currentTarget.select()} hint={`Works for ${creds.c.expires_in_hours} hours. They choose their own password and set up an authenticator app at first sign-in.`} />
+          <div className="row">
+            <Button size="sm" variant="secondary" onClick={() => void copyText(creds.c.sign_in_url, 'Link')}>Copy link</Button>
+            <Button size="sm" variant="secondary" onClick={() => void copyText(creds.c.temp_password, 'Password')}>Copy password</Button>
+          </div>
+        </>}
       </Dialog>
       <Dialog open={act?.kind === 'role'} title={`Change role for ${act?.who.name ?? ''}`} description="A second person (never the person affected) must approve. Their sessions end so the new role starts clean." onClose={() => setAct(null)}
         footer={<><Button variant="secondary" onClick={() => setAct(null)}>Cancel</Button><Button loading={busy} disabled={!roleId || roleId === act?.who.role.id} onClick={() => void send()}>Send for approval</Button></>}>
